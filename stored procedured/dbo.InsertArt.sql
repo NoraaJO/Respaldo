@@ -1,0 +1,69 @@
+﻿ALTER PROCEDURE Insertar_Articulo
+(
+	@InNombre VARCHAR(128)-- NOMBRE DEL ARTICULO A INSERTAR
+	, @InPrecio MONEY -- PRECIO DEL ARTICULO A INSERTAR
+	, @InClaseArticulo VARCHAR(64) -- CLASE DE ARTICULO DEL ARTICULO A INSERTAR
+	, @InIp VARCHAR(64) --IP DEL USUARIO
+	, @InUsuarios VARCHAR(16) --USERNAME QUE EJECUTO EL PROCEDIMIENTO
+	, @OutResultado INT OUTPUT -- VALOR DE SALIDA DEL RESULTADO DE LA INSERCIÓN
+)
+AS
+BEGIN
+	SET NOCOUNT ON;--ACTIVAR, PARA QUE NO ENVIE EL MENSAJE FILAS AFECTADAS
+		
+		DECLARE @ArticuloRevisar VARCHAR (64); --DECLARACION DE VARIABLE PARA COMPROBAR DUPLICADO DE ARTICULOS
+		DECLARE @DescriptionEventlog VARCHAR(128)
+		DECLARE @idClaseArt INT
+
+		IF(@InNombre IS NULL ) -- COMPRUEBA QUE EL NOMBRE NO SEA NULO
+		BEGIN
+			PRINT 'Nombre no valido'; --IMPRIME EN CONSOLA ERROR
+			SET @OutResultado = 1; -- VALOR DE SALIDA 1 NOMBRE NO VALIDO O VACIO
+			RETURN;
+		END;
+
+		IF (@InPrecio IS NULL OR --COMPRUEBA QUE EL PRECIO NO SEA NULO O PRECIO MENOR O IGUAL A CERO
+			@InPrecio <= 0
+			)
+		BEGIN
+			PRINT 'El precio no es valido' --IMPRIME EN CONSOLA ERROR
+			SET @OutResultado = 2; -- VALOR DE SALIDA 2 PRECIO INFERIOR O IGUAL A CERO O VACIO
+			RETURN;
+		END;
+
+		IF (@InClaseArticulo IS NULL) --COMPRUEBA QUE LA CLASE ARTICULO NO ESTE VACIA 
+		BEGIN 
+			PRINT 'Clase de Articulo no valido'; --IMPRIME EN CONSOLA ERROR
+			SET @OutResultado = 3; -- VALOR DE SALIDA 3 ARTICULO NO VALIDO O VACIO
+			RETURN;
+		END;
+		
+		SET @idClaseArt = (SELECT id FROM dbo.ClaseArticulo WHERE Nombre = @InClaseArticulo);
+		IF (@idClaseArt IS NULL)
+		BEGIN
+			PRINT 'Clase de articulo no valido';
+			SET @OutResultado = 3;
+			RETURN;
+		END;
+		--Aqui se revisa si hay un articulo con el mismo nombre.
+		SET @ArticuloRevisar = (SELECT Nombre FROM dbo.Articulo WHERE Nombre = @InNombre)
+		
+		IF (@ArticuloRevisar IS NOT NULL) --SI EL NOMBRE NO ES NULO, HAY UN DUPLICADO CON EL MISMO NOMBRE 
+		BEGIN
+			PRINT 'Articulo con nombre duplicado'; --IMPRIME EN CONSOLA ERROR
+			SET @OutResultado = 4; -- VALOR DE SALIDA 4 NOMBRE DUPLICADO
+			RETURN;
+		END
+
+	INSERT INTO dbo.Articulo(Nombre, Precio, IdClaseArticulo) --INSERTA EN LA TABLA ARTICULOS
+	VALUES (@InNombre, @InPrecio, @idClaseArt); --VALORES DE LOS PARAMERTROS A INTRODUCIR EN LA TABLA
+	PRINT 'Articulo Agregado Exitosamente'; --IMPRIME EN CONSOLA
+	SET @OutResultado = 5; --VALOR DE SALIDA 5 ARTICULO AGREGADO EXITOSAMENTE
+	
+	SET @DescriptionEventlog = '<'+CAST(@idClaseArt AS VARCHAR(64))+'>, <'+@InNombre+'>,<'+CAST(@InPrecio AS VARCHAR(64))+'>';
+	EXEC dbo.Insertar_EventLog 'Insertar articulo exitoso', @DescriptionEventlog, @InUsuarios, @InIp; --REGISTRA LA ACCIÓN REALIZADA CON LOS VALORES Y DATOS DE QUIEN LO HIZO EN EVENTLOG
+
+	RETURN; 
+	SET NOCOUNT OFF; --SE DESACTIVA SIEMPRE ANTES DE FINALIZAR.
+
+END;
